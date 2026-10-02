@@ -1,0 +1,85 @@
+{
+  "$schema": "urn:netbeans-flutter-designer:schema:fd:2",
+  "format": "netbeans-flutter-designer",
+  "schemaVersion": 2,
+  "documentId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "source": {
+    "dartFile": "advanced_text.dart",
+    "className": "AdvancedText",
+    "widgetKind": "stateless",
+    "managedRegions": {
+      "imports": {
+        "sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "build": {
+        "sha256": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+      }
+    }
+  },
+  "root": {
+    "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    "type": "flutter.widgets.Text",
+    "properties": {
+      "aTheme": {
+        "kind": "themeToken",
+        "token": "material.textTheme.bodyMedium"
+      },
+      "bPaint": {
+        "kind": "paint",
+        "color": {
+          "kind": "literal",
+          "argb": "0xFFAABBCC"
+        },
+        "blendMode": "multiply",
+        "style": "stroke",
+        "strokeWidth": 2.5,
+        "strokeCap": "round",
+        "strokeJoin": "bevel",
+        "strokeMiterLimit": 4,
+        "antiAlias": true,
+        "filterQuality": "high",
+        "invertColors": false,
+        "maskFilter": {
+          "style": "outer",
+          "sigma": 3.5
+        }
+      },
+      "cShadows": {
+        "kind": "shadowList",
+        "items": [
+          {
+            "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "color": {
+              "kind": "theme",
+              "token": "material.colorScheme.shadow"
+            },
+            "offsetX": -1,
+            "offsetY": 2,
+            "blurRadius": 3
+          }
+        ]
+      },
+      "dFeatures": {
+        "kind": "fontFeatureList",
+        "items": [
+          {
+            "id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            "tag": "liga",
+            "value": 1
+          }
+        ]
+      },
+      "eVariations": {
+        "kind": "fontVariationList",
+        "items": [
+          {
+            "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "axis": "wght",
+            "value": 700
+          }
+        ]
+      }
+    },
+    "slots": {}
+  }
+}

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.vgrytsenko2022</groupId>
+    <artifactId>netbeans-flutter-plugin</artifactId>
+    <version>0.1.3</version>
+  </parent>
+
+  <artifactId>designer-catalog-contributor-fixture</artifactId>
+  <packaging>nbm</packaging>
+  <name>Flutter Designer Catalog Contributor Fixture</name>
+  <description>Runtime-only compatibility fixture for the public Flutter Designer catalog SPI.</description>
+
+  <dependencies>
+    <!-- This is deliberately the only route to the catalog API. The fixture must
+         reuse the host module's flutter-designer.jar instead of bundling a copy. -->
+    <dependency>
+      <groupId>io.github.vgrytsenko2022</groupId>
+      <artifactId>netbeans-plugin</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.netbeans.api</groupId>
+      <artifactId>org-openide-util-lookup</artifactId>
+      <version>${netbeans.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <proc>full</proc>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.5.1</version>
+        <configuration>
+          <archive>
+            <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.netbeans.utilities</groupId>
+        <artifactId>nbm-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+    <version>0.1.3</version>
+    <groupId>io.github.vgrytsenko2022</groupId>
+</project>

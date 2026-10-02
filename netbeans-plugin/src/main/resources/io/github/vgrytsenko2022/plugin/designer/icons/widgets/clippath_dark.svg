@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <defs>
+    <clipPath id="clippath-16">
+      <path d="M3 13c.7-3.6-.7-6.7 2.5-9S10.7 3.2 13 6c-1.1 2.7.8 4.6-2 7z"/>
+    </clipPath>
+  </defs>
+  <path d="M3 13c.7-3.6-.7-6.7 2.5-9S10.7 3.2 13 6c-1.1 2.7.8 4.6-2 7z" fill="#243442" stroke="#C5D3DF" stroke-width="1.2" stroke-linejoin="round"/>
+  <g clip-path="url(#clippath-16)">
+    <circle cx="11" cy="5" r="4" fill="#4DD0E1" stroke="#B2EBF2"/>
+    <path d="M1 13 8 6l7 7" fill="#1976D2" stroke="#90CAF9" stroke-linejoin="round"/>
+  </g>
+  <path d="M2 13C3 7 3 3 8 2s5 1 6 5" fill="none" stroke="#FFB74D" stroke-width="1.2" stroke-linecap="round"/>
+</svg>

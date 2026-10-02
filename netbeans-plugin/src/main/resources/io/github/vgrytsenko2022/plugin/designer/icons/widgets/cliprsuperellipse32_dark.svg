@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <defs>
+    <clipPath id="cliprsuperellipse-32">
+      <path d="M16 6C24.6 6 26 7.4 26 16s-1.4 10-10 10-10-1.4-10-10 1.4-10 10-10Z"/>
+    </clipPath>
+  </defs>
+  <path d="M16 6C24.6 6 26 7.4 26 16s-1.4 10-10 10-10-1.4-10-10 1.4-10 10-10Z" fill="#253746" stroke="#C5D3DF" stroke-width="2.4"/>
+  <g clip-path="url(#cliprsuperellipse-32)">
+    <circle cx="22" cy="10" r="8" fill="#4DD0E1" stroke="#80DEEA" stroke-width="2"/>
+    <path d="M2 26 16 12l14 14" fill="#64B5F6" stroke="#90CAF9" stroke-width="2" stroke-linejoin="round"/>
+  </g>
+  <path d="M3 12C3 4 4 3 12 3M20 29c8 0 9-1 9-9" fill="none" stroke="#FFB74D" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>io.github.vgrytsenko2022</groupId>
+    <artifactId>netbeans-flutter-plugin</artifactId>
+    <version>0.1.3</version>
+  </parent>
+  <artifactId>flutter-canvas-runner</artifactId>
+  <packaging>jar</packaging>
+  <name>Flutter Canvas runner sources</name>
+  <description>Versioned Flutter sources for isolated native and browser Canvas surfaces.</description>
+
+  <build>
+    <resources>
+      <resource>
+        <directory>src/main/flutter</directory>
+        <targetPath>io/github/vgrytsenko2022/canvas/runner/v1</targetPath>
+        <filtering>false</filtering>
+        <excludes>
+          <exclude>.dart_tool/**</exclude>
+          <exclude>build/**</exclude>
+          <exclude>.idea/**</exclude>
+          <exclude>test/**</exclude>
+          <exclude>windows/flutter/ephemeral/**</exclude>
+          <exclude>windows/flutter/generated_*</exclude>
+          <exclude>**/.gitignore</exclude>
+          <exclude>.metadata</exclude>
+          <exclude>*.iml</exclude>
+          <exclude>README.md</exclude>
+        </excludes>
+      </resource>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+      </resource>
+    </resources>
+  </build>
+    <version>0.1.3</version>
+    <groupId>io.github.vgrytsenko2022</groupId>
+</project>

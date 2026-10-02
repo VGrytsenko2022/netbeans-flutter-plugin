@@ -1,0 +1,138 @@
+package io.github.vgrytsenko2022.plugin.designer.properties;
+
+import io.github.vgrytsenko2022.designer.catalog.DartParameter;
+import io.github.vgrytsenko2022.designer.catalog.PropertyDefinition;
+import io.github.vgrytsenko2022.designer.catalog.PropertyValueConstraint;
+import io.github.vgrytsenko2022.designer.model.PropertyValue;
+import io.github.vgrytsenko2022.designer.model.PropertyValueKind;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Dimension;
+import java.beans.FeatureDescriptor;
+import java.beans.PropertyEditor;
+import java.util.List;
+import java.util.Optional;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import org.openide.explorer.propertysheet.PropertyEnv;
+
+/** Cancel-safe union of stopped nullable colors and a typed project animation reference. */
+final class FlutterColorAnimationEditorComponent {
+    static final String MODE_NAME = "flutter.colorAnimation.mode";
+    static final String NOTE_NAME = "flutter.colorAnimation.note";
+    static final String UNSET = "Use Flutter default (omit valueColor)";
+    static final String STOPPED_COLOR = "Stopped color (literal or theme)";
+    static final String STOPPED_NULL = "Stopped null (use color/theme fallback)";
+    static final String PROJECT = "Project Animation<Color?>";
+    static final String STOPPED_TRANSPARENT = "Stopped null (transparent barrier)";
+
+    private FlutterColorAnimationEditorComponent() { }
+
+    static Component customEditor(PropertyEditor editor,
+            FlutterTypedPropertyEditors.Binding binding, PropertyEnv environment) {
+        return new AnimationPanel(editor, binding, environment);
+    }
+
+    private static final class AnimationPanel extends FlutterPropertyEditorComponents.CommitOnValidPanel {
+        private final JComboBox<String> mode;
+        private final boolean requiredAnimation;
+        private final CardLayout layout = new CardLayout();
+        private final JPanel cards = new JPanel(layout);
+        private final JTextArea note = new JTextArea(3, 55);
+        private final FlutterPropertyEditorComponents.CommitOnValidPanel colorPanel;
+        private final FlutterPropertyEditorComponents.CommitOnValidPanel referencePanel;
+        private boolean refreshing;
+
+        AnimationPanel(PropertyEditor editor, FlutterTypedPropertyEditors.Binding binding, PropertyEnv environment) {
+            super(editor, binding, environment);
+            requiredAnimation = binding.definition().parameter().required();
+            mode = new JComboBox<>(requiredAnimation
+                    ? new String[]{STOPPED_COLOR, STOPPED_TRANSPARENT, PROJECT}
+                    : new String[]{UNSET, STOPPED_COLOR, STOPPED_NULL, PROJECT});
+            setLayout(new BorderLayout(0, 8)); setPreferredSize(new Dimension(720, 610));
+            setName("flutter.colorAnimation.editor");
+            getAccessibleContext().setAccessibleName(requiredAnimation ? "Required color animation editor" : "Progress indicator valueColor animation editor");
+            getAccessibleContext().setAccessibleDescription((requiredAnimation ? "Required non-null animation of nullable Color." : "Optional stopped nullable color or analyzer-verified Animation<Color?>.") + " All drafts remain local until OK; cancel preserves the original value.");
+            mode.setName(MODE_NAME); mode.getAccessibleContext().setAccessibleName("Color animation source");
+            mode.getAccessibleContext().setAccessibleDescription(requiredAnimation ? "Choose stopped literal/theme color, stopped transparent color, or a project animation. Omission is not allowed." : "Choose omission, stopped literal/theme color, explicit stopped null, or a project animation reference.");
+            var heading = new JPanel(new BorderLayout(8, 0)); var label = new JLabel("Source:"); label.setLabelFor(mode);
+            heading.add(label, BorderLayout.WEST); heading.add(mode, BorderLayout.CENTER); add(heading, BorderLayout.NORTH);
+            var initial = initialValue().explicitValue().orElse(null);
+
+            var colorDefinition = new PropertyDefinition(binding.definition().name(), DartParameter.named(0, true),
+                    binding.definition().constraints().stream().filter(value -> value.kind() == PropertyValueKind.COLOR
+                            || value.kind() == PropertyValueKind.THEME_TOKEN).toList(), Optional.empty());
+            var colorBinding = FlutterTypedPropertyEditors.binding(colorDefinition).orElseThrow();
+            var colorEditor = colorBinding.createEditor();
+            colorEditor.setValue(FlutterPropertyCellValue.explicit(initial instanceof PropertyValue.ColorValue
+                    || initial instanceof PropertyValue.ThemeTokenValue ? initial : new PropertyValue.ColorValue(0xff000000L)));
+            var colorEnvironment = PropertyEnv.create(new FeatureDescriptor());
+            colorPanel = (FlutterPropertyEditorComponents.CommitOnValidPanel)
+                    FlutterComplexPropertyEditorComponents.customEditor(colorEditor, colorBinding, colorEnvironment);
+            cards.add(colorPanel, STOPPED_COLOR);
+
+            var referenceDefinition = new PropertyDefinition(binding.definition().name(), DartParameter.named(0, true),
+                    List.of(new PropertyValueConstraint.DartObjectReferenceValues("Animation<Color?>")), Optional.empty());
+            var referenceBinding = FlutterTypedPropertyEditors.binding(referenceDefinition).orElseThrow();
+            var referenceEditor = referenceBinding.createEditor();
+            referenceEditor.setValue(FlutterPropertyCellValue.explicit(initial instanceof PropertyValue.DartObjectReferenceValue ? initial
+                    : new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_valueColor", Optional.empty(),
+                            PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty())));
+            var referenceEnvironment = PropertyEnv.create(new FeatureDescriptor());
+            referencePanel = (FlutterPropertyEditorComponents.CommitOnValidPanel)
+                    FlutterDartObjectReferenceEditorComponent.customEditor(referenceEditor, referenceBinding, referenceEnvironment);
+            if (!(initial instanceof PropertyValue.DartObjectReferenceValue)) clearRoot(referencePanel);
+            cards.add(referencePanel, PROJECT);
+            cards.add(new JPanel(), UNSET); cards.add(new JPanel(), STOPPED_NULL); cards.add(new JPanel(), STOPPED_TRANSPARENT); add(cards, BorderLayout.CENTER);
+            note.setName(NOTE_NAME); note.setEditable(false); note.setOpaque(false); note.setLineWrap(true); note.setWrapStyleWord(true);
+            note.getAccessibleContext().setAccessibleName("Color animation behavior and preview note"); add(note, BorderLayout.SOUTH);
+            mode.setSelectedItem(initial == null ? requiredAnimation ? STOPPED_TRANSPARENT : UNSET : initial instanceof PropertyValue.NullValue ? requiredAnimation ? STOPPED_TRANSPARENT : STOPPED_NULL
+                    : initial instanceof PropertyValue.DartObjectReferenceValue ? PROJECT : STOPPED_COLOR);
+            mode.addActionListener(ignored -> refresh(true));
+            colorEnvironment.addPropertyChangeListener(ignored -> refresh(true));
+            referenceEnvironment.addPropertyChangeListener(ignored -> refresh(true));
+            activate(); refresh(true);
+        }
+
+        @Override boolean prepareCommit() { return refresh(false); }
+
+        private boolean refresh(boolean requestValidation) {
+            if (refreshing) return true;
+            refreshing = true;
+            try {
+                String selected = (String) mode.getSelectedItem(); layout.show(cards, selected);
+                String text = switch (selected) {
+                    case PROJECT -> requiredAnimation ? "The analyzer verifies a non-null Animation<Color?>. Project code is not executed by isolated Canvas; preview uses a stopped null color. Generated Dart preserves live animation updates and application ownership." : "The analyzer verifies Animation<Color?>. Project code is not executed by isolated Canvas; dynamic animation preview is explicitly unavailable. Use a getter or factory for configured objects.";
+                    case STOPPED_TRANSPARENT -> "Stores the required AlwaysStoppedAnimation<Color?>(null). The color is transparent; the barrier still blocks input. This is a non-null animation with a null color value, not omission.";
+                    case STOPPED_NULL -> "Stores AlwaysStoppedAnimation<Color?>(null), not omission. Flutter falls back to Color and then the progress-indicator theme. The explicit null choice is retained when saving and reopening.";
+                    case STOPPED_COLOR -> requiredAnimation ? "Stores the required AlwaysStoppedAnimation<Color> with a literal ARGB or theme color. No animation controller is created. Theme color follows the active project theme." : "Stores AlwaysStoppedAnimation<Color> with a literal ARGB or theme color. This takes precedence over Color without clearing it. Theme color follows the active project theme.";
+                    default -> "Omits valueColor and preserves Flutter's Color/theme fallback. Omission is different from an explicit stopped-null animation.";
+                };
+                note.setText(text); note.getAccessibleContext().setAccessibleDescription(text);
+                var candidate = switch (selected) {
+                    case PROJECT -> requestValidation ? referencePanel.stagedDraftValue() : referencePanel.validatedDraftValue();
+                    case STOPPED_COLOR -> requestValidation ? colorPanel.stagedDraftValue() : colorPanel.validatedDraftValue();
+                    case STOPPED_NULL, STOPPED_TRANSPARENT -> FlutterPropertyCellValue.explicit(new PropertyValue.NullValue());
+                    default -> FlutterPropertyCellValue.unset();
+                };
+                clearInvalid(note, text);
+                if (requestValidation) markValid(candidate); else stageValid(candidate);
+                return true;
+            } catch (IllegalArgumentException failure) {
+                markInvalid(failure.getMessage(), note); return false;
+            } finally { refreshing = false; }
+        }
+
+        private static void clearRoot(Container parent) {
+            for (var component : parent.getComponents()) {
+                if (component instanceof JTextField field && FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME.equals(field.getName())) field.setText("");
+                else if (component instanceof Container child) clearRoot(child);
+            }
+        }
+    }
+}

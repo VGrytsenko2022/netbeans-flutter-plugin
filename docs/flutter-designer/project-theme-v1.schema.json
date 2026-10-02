@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:netbeans-flutter-designer:schema:project-theme:1",
+  "title": "NetBeans Flutter project theme",
+  "description": "Version 1 project-wide theme catalog stored at .fd_templates/project.fdtheme.",
+  "type": "object",
+  "required": [
+    "format",
+    "schemaVersion",
+    "defaultMode",
+    "lightThemeId",
+    "darkThemeId",
+    "themes",
+    "generated"
+  ],
+  "properties": {
+    "format": {
+      "const": "netbeans-flutter-project-theme"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "defaultMode": {
+      "enum": [
+        "system",
+        "light",
+        "dark"
+      ]
+    },
+    "lightThemeId": {
+      "$ref": "#/$defs/themeId"
+    },
+    "darkThemeId": {
+      "$ref": "#/$defs/themeId"
+    },
+    "themes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/theme"
+      }
+    },
+    "generated": {
+      "$ref": "#/$defs/generated"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "themeId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "maxLength": 64
+    },
+    "theme": {
+      "type": "object",
+      "required": [
+        "id",
+        "displayName",
+        "brightness",
+        "seedArgb"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/themeId"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "brightness": {
+          "enum": [
+            "light",
+            "dark"
+          ]
+        },
+        "seedArgb": {
+          "type": "string",
+          "description": "Opaque Material seed color in canonical ARGB form.",
+          "pattern": "^0xFF[0-9A-F]{6}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "generated": {
+      "type": "object",
+      "required": [
+        "dartFile",
+        "sha256"
+      ],
+      "properties": {
+        "dartFile": {
+          "const": "lib/theme/app_theme.dart"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9A-F]{64}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

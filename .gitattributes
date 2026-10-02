@@ -1,0 +1,14 @@
+/docs/flutter-designer/fd-v1.schema.json text eol=lf
+/docs/flutter-designer/fd-v2.schema.json text eol=lf
+/docs/flutter-designer/fd-v3.schema.json text eol=lf
+/docs/flutter-designer/fd-v4.schema.json text eol=lf
+/docs/flutter-designer/fd-v5.schema.json text eol=lf
+/docs/flutter-designer/fd-v6.schema.json text eol=lf
+/docs/flutter-designer/fd-v7.schema.json text eol=lf
+/docs/flutter-designer/project-theme-v*.schema.json text eol=lf
+/flutter-designer/src/main/resources/META-INF/netbeans-flutter-designer/schema/fd-v1.schema.json text eol=lf
+/flutter-canvas-runner/src/main/flutter/** text eol=lf
+/flutter-canvas-runner/src/main/resources/io/github/vgrytsenko2022/canvas/runner/CanvasRunnerBundle.manifest text eol=lf
+/flutter-canvas-runner/src/main/resources/io/github/vgrytsenko2022/canvas/runner/WebCanvasArtifact.manifest text eol=lf
+/netbeans-plugin/src/main/resources/io/github/vgrytsenko2022/plugin/designer/canvas/webview2/win-x64/native.manifest text eol=lf
+/netbeans-plugin/src/main/resources/io/github/vgrytsenko2022/plugin/designer/canvas/webview2/win-x64/*.txt text eol=lf

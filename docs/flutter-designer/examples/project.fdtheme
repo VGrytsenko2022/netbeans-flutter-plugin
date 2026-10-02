@@ -1,0 +1,31 @@
+{
+  "format" : "netbeans-flutter-project-theme",
+  "schemaVersion" : 5,
+  "enabled" : true,
+  "defaultMode" : "system",
+  "lightThemeId" : "light",
+  "darkThemeId" : "dark",
+  "themes" : [ {
+    "id" : "light",
+    "enabled" : true,
+    "displayName" : "Light",
+    "brightness" : "light",
+    "seedArgb" : "0xFF6750A4",
+    "colorScheme" : { },
+    "textTheme" : { },
+    "components" : { }
+  }, {
+    "id" : "dark",
+    "enabled" : true,
+    "displayName" : "Dark",
+    "brightness" : "dark",
+    "seedArgb" : "0xFF6750A4",
+    "colorScheme" : { },
+    "textTheme" : { },
+    "components" : { }
+  } ],
+  "generated" : {
+    "dartFile" : "lib/theme/app_theme.dart",
+    "sha256" : "766C2228657C5D19EB7A5C13A3449235F887EC84DFBC7D6491DA45BE1CB4994A"
+  }
+}

@@ -1,0 +1,476 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:netbeans-flutter-designer:schema:fd:1",
+  "title": "NetBeans Flutter Designer document",
+  "description": "Version 1 JSON contract for a .fd visual Flutter form.",
+  "type": "object",
+  "required": [
+    "format",
+    "schemaVersion",
+    "documentId",
+    "source",
+    "root"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "format": {
+      "const": "netbeans-flutter-designer"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "documentId": {
+      "$ref": "#/$defs/stableId"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "canvas": {
+      "$ref": "#/$defs/canvas"
+    },
+    "root": {
+      "$ref": "#/$defs/widget"
+    },
+    "extensions": {
+      "$ref": "#/$defs/extensions"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "dartFile",
+        "className",
+        "widgetKind",
+        "managedRegions"
+      ],
+      "properties": {
+        "dartFile": {
+          "type": "string",
+          "pattern": "^_?[a-z][a-z0-9_]*\\.dart$"
+        },
+        "className": {
+          "type": "string",
+          "pattern": "^_?[A-Z][A-Za-z0-9]*$",
+          "not": {
+            "const": "Function"
+          }
+        },
+        "widgetKind": {
+          "enum": [
+            "stateless",
+            "stateful"
+          ]
+        },
+        "generatorVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "managedRegions": {
+          "type": "object",
+          "required": [
+            "imports",
+            "build"
+          ],
+          "properties": {
+            "imports": {
+              "$ref": "#/$defs/managedRegion"
+            },
+            "build": {
+              "$ref": "#/$defs/managedRegion"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "managedRegion": {
+      "type": "object",
+      "required": [
+        "sha256"
+      ],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9A-F]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "canvas": {
+      "type": "object",
+      "properties": {
+        "preset": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "logicalWidth": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000
+        },
+        "logicalHeight": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000
+        },
+        "devicePixelRatio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10
+        },
+        "orientation": {
+          "enum": [
+            "portrait",
+            "landscape"
+          ]
+        },
+        "themeMode": {
+          "enum": [
+            "system",
+            "light",
+            "dark"
+          ]
+        },
+        "textScaleFactor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 5
+        },
+        "locale": {
+          "type": "string",
+          "pattern": "^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{2,8})*$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "widget": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "properties",
+        "slots"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableId"
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:/#-]{0,254}$"
+        },
+        "properties": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/propertyValue"
+          }
+        },
+        "slots": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/slot"
+          }
+        },
+        "extensions": {
+          "$ref": "#/$defs/extensions"
+        }
+      },
+      "additionalProperties": false
+    },
+    "slot": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/singleSlot"
+        },
+        {
+          "$ref": "#/$defs/listSlot"
+        }
+      ]
+    },
+    "singleSlot": {
+      "type": "object",
+      "required": [
+        "kind",
+        "child"
+      ],
+      "properties": {
+        "kind": {
+          "const": "single"
+        },
+        "child": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/widget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "listSlot": {
+      "type": "object",
+      "required": [
+        "kind",
+        "children"
+      ],
+      "properties": {
+        "kind": {
+          "const": "list"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/widget"
+          },
+          "maxItems": 10000
+        }
+      },
+      "additionalProperties": false
+    },
+    "propertyValue": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/stringValue"
+        },
+        {
+          "$ref": "#/$defs/booleanValue"
+        },
+        {
+          "$ref": "#/$defs/integerValue"
+        },
+        {
+          "$ref": "#/$defs/doubleValue"
+        },
+        {
+          "$ref": "#/$defs/enumValue"
+        },
+        {
+          "$ref": "#/$defs/colorValue"
+        },
+        {
+          "$ref": "#/$defs/edgeInsetsValue"
+        },
+        {
+          "$ref": "#/$defs/assetValue"
+        },
+        {
+          "$ref": "#/$defs/callbackValue"
+        },
+        {
+          "$ref": "#/$defs/dartExpressionValue"
+        }
+      ]
+    },
+    "stringValue": {
+      "type": "object",
+      "required": [
+        "kind",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "const": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "booleanValue": {
+      "type": "object",
+      "required": [
+        "kind",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "const": "boolean"
+        },
+        "value": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "integerValue": {
+      "type": "object",
+      "required": [
+        "kind",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "const": "integer"
+        },
+        "value": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "doubleValue": {
+      "type": "object",
+      "required": [
+        "kind",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "const": "double"
+        },
+        "value": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "enumValue": {
+      "type": "object",
+      "required": [
+        "kind",
+        "type",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "const": "enum"
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "colorValue": {
+      "type": "object",
+      "required": [
+        "kind",
+        "argb"
+      ],
+      "properties": {
+        "kind": {
+          "const": "color"
+        },
+        "argb": {
+          "type": "string",
+          "pattern": "^0x[0-9A-F]{8}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "edgeInsetsValue": {
+      "type": "object",
+      "required": [
+        "kind",
+        "left",
+        "top",
+        "right",
+        "bottom"
+      ],
+      "properties": {
+        "kind": {
+          "const": "edgeInsets"
+        },
+        "left": {
+          "type": "number"
+        },
+        "top": {
+          "type": "number"
+        },
+        "right": {
+          "type": "number"
+        },
+        "bottom": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "assetValue": {
+      "type": "object",
+      "required": [
+        "kind",
+        "path"
+      ],
+      "properties": {
+        "kind": {
+          "const": "asset"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "additionalProperties": false
+    },
+    "callbackValue": {
+      "type": "object",
+      "required": [
+        "kind",
+        "handler"
+      ],
+      "properties": {
+        "kind": {
+          "const": "callback"
+        },
+        "handler": {
+          "type": "string",
+          "pattern": "^_?[A-Za-z][A-Za-z0-9_]*$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "dartExpressionValue": {
+      "type": "object",
+      "required": [
+        "kind",
+        "code"
+      ],
+      "properties": {
+        "kind": {
+          "const": "dartExpression"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        }
+      },
+      "additionalProperties": false
+    },
+    "extensions": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z][a-z0-9.-]*:[A-Za-z0-9._-]+$": true
+      },
+      "additionalProperties": false
+    }
+  }
+}
